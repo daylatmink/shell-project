@@ -1,5 +1,5 @@
-#ifndef WRAPPERS_H
-# define WRAPPERS_H
+#ifndef CELL_H
+# define CELL_H
 
 /*
 ** Standard library includes for core functionality:
