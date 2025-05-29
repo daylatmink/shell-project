@@ -69,7 +69,15 @@ typedef struct s_builtin
 ** Each returns 0 on success, non-zero on failure
 */
 int	cell_echo(char **args);  /* Echo command implementation */
-int	cell_env(char **args);   /* Environment variables display */
+int	cell_env(char **args);   /* Environment variables display*/
+int     cell_pwd(char **args);     /* In thư mục hiện tại */
+int     cell_clear(char **args);   /* Xóa màn hình */
+int     cell_help(char **args);  //lenh help
+int     cell_history(char **args); //lenh xem lich su
+int     cell_date(char **args); // lenh xem ngay
+int     cell_whoami(char **args); // lenh xem nguoi dung
+int     cell_uptime(char **args); //lenh xem tg may chay
+int     cell_touch(char **args); // tao file
 int	cell_exit(char **args);  /* Shell exit command */
 
 /*

@@ -1,185 +1,133 @@
 #include "cell.h"
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <string.h>
+#include <stdlib.h>
 
+#define SPACE " \t\r\n"
 /* Global status variable for tracking command execution results */
 int	status = 0;
 
-/*
-** Array of built-in commands with their handlers
-** Terminated by a NULL sentinel for easy iteration
-** Currently supports: echo, env, exit
-*/
 t_builtin	g_builtin[] = 
 {
-	{.builtin_name = "echo", .foo=cell_echo},   /* Echo text to stdout */
-	{.builtin_name = "env", .foo=cell_env},     /* Print environment */
-	{.builtin_name = "exit", .foo=cell_exit},  /* Exit the shell */
-	{.builtin_name = NULL},                    /* Sentinel */
+	{.builtin_name = "echo", .foo=cell_echo},
+	{.builtin_name = "env", .foo=cell_env},
+	{.builtin_name = "exit", .foo=cell_exit},
+	{.builtin_name = "pwd", .foo=cell_pwd},
+    {.builtin_name = "clear", .foo=cell_clear},
+    {.builtin_name = "help", .foo=cell_help},
+    {.builtin_name = "history", .foo=cell_history},
+    {.builtin_name = "date", .foo=cell_date},
+    {.builtin_name = "whoami", .foo=cell_whoami},
+    {.builtin_name = "uptime", .foo=cell_uptime},
+    {.builtin_name = "touch", .foo=cell_touch},
+	{.builtin_name = NULL},
 };
 
+const char *builtin_cmds[] = {
+	"echo", "env", "exit", "pwd", "clear", "help", "history", "date", "whoami", "uptime", "touch", NULL
+};
 
-/**
- * cell_launch - Creates a child process to execute external commands
- * @args: Array of command arguments
- * Return: 1 on success, 0 on failure
- * Corner cases:
- * - NULL args: No action taken
- * - Fork failure: Error message printed, shell continues
- * - Execvp failure: Child process exits with failure status
- */
-void	cell_launch(char **args)
-{
+char *command_generator(const char *text, int state) {
+	static int list_index, len;
+	const char *name;
 
-	// Is fork returning 2 values?
-	if (Fork() == CELL_JR)
-	{
-		// replace the current process image with a new process image
-		//v for "vector", p for "path".
-		//Takes an array of arguments and uses PATH to find the executable.
-		//	char *args[] = {"ls", "-l", "-a", NULL};
-		//	execvp("ls", args);
-		Execvp(args[0], args);
+	if (!state) {
+		list_index = 0;
+		len = strlen(text);
 	}
-	else
-	{
-		//Automatically waits for any child process, 
-		//which is often sufficient for beginner-level 
-		//shells that only handle one child process at a time.
-		// FINE for CELL v°1
-		Wait(&status);
 
-		/*
-		Waitpid(cell_jr, &status, 0);
-		*/
+	while ((name = builtin_cmds[list_index++])) {
+		if (strncmp(name, text, len) == 0) {
+			return strdup(name);
+		}
+	}
+	return NULL;
+}
+
+char **cell_completion(const char *text, int start, int end) {
+	(void)start; (void)end;
+	rl_attempted_completion_over = 1;
+	return rl_completion_matches(text, command_generator);
+}
+
+char *cell_read_line(void) {
+    char cwd[BUFSIZ];
+    char prompt[BUFSIZ + 64];
+    char *line;
+    if (status)
+        snprintf(prompt, sizeof(prompt),
+            "🦠"C"[%s]"RED"[%d]"RST"🦠 > ",
+            Getcwd(cwd, BUFSIZ), status);
+    else
+        snprintf(prompt, sizeof(prompt),
+            "🦠"C"[%s]"RST"🦠 > ",
+            Getcwd(cwd, BUFSIZ));
+    line = readline(prompt);
+    if (line && *line)
+        add_history(line);
+    return line;
+}
+
+void	cell_launch(char **args) {
+	if (Fork() == CELL_JR) {
+		Execvp(args[0], args);
+	} else {
+		Wait(&status);
 	}
 }
 
-/**
- * cell_execute - Executes built-in or external commands
- * @args: Array of command arguments
- * Return: 1 to continue shell, 0 to terminate
- */
-void	cell_execute(char **args)
-{
+void	cell_execute(char **args) {
 	int			i;
 	const char	*curr_builtin;
 
 	if (!args || !args[0])
 		return ;
 	i = 0;
-
-	// 1) check if builtin requested
-	while ((curr_builtin = g_builtin[i].builtin_name))
-	{
-		if (!strcmp(args[0], curr_builtin))
-		{
-			// 2) Run builtin
+	while ((curr_builtin = g_builtin[i].builtin_name)) {
+		if (!strcmp(args[0], curr_builtin)) {
 			if ((status = (g_builtin[i].foo)(args)))
 				p("%s failed\n", curr_builtin);
 			return ;
 		}
 		i++;
 	}
-	
-	// 2) fork and launch 
 	cell_launch(args);
 }
 
-/**
- * cell_read_line - Reads a line from standard input
- * Return: Pointer to the read line or NULL on failure
- */
-char	*cell_read_line(void)
-{
-	char	*line;
-	size_t	bufsize;
-	char	cwd[BUFSIZ];
+char **cell_split_line(char *line) {
+    size_t bufsize = BUFSIZ;
+    unsigned long position = 0;
+    char **tokens = malloc(bufsize * sizeof *tokens);
+    if (!tokens) { perror("malloc"); exit(EXIT_FAILURE); }
 
-	line = NULL;
-	bufsize = 0;
-	// check if interactive mode 
-	if (isatty(fileno(stdin)))
-	{
-		if (status)
-			p("🦠"C"[%s]"RED"[%d]"RST"🦠 > ", 
-					Getcwd(cwd, BUFSIZ), 
-					status);
-		else
-			p("🦠"C"[%s]"RST"🦠 > ", 
-					Getcwd(cwd, BUFSIZ));
-	}
-
-	Getline(&line, &bufsize, stdin);
-	return (line);
+    for (char *token = strtok(line, SPACE); token; token = strtok(NULL, SPACE)) {
+        tokens[position++] = token;	
+        if (position >= bufsize) {
+            bufsize *= 2;
+            tokens = realloc(tokens, bufsize * sizeof *tokens);
+            if (!tokens) { perror("realloc"); exit(EXIT_FAILURE); }
+        }
+    }
+    tokens[position] = NULL;
+    return tokens;
 }
 
-
-/**
- * cell_split_line - Splits input line into tokens
- * @line: Input line to be tokenized
- * Return: Array of tokens or NULL on failure
- */
-char	**cell_split_line(char *line)
-{
-	size_t			bufsize;
-	unsigned long	position;
-	char			**tokens;
-
-	bufsize = BUFSIZ;
-	position = 0;
-	tokens = Malloc(bufsize * sizeof *tokens);
-
-	for (char *token = strtok(line, SPACE); token; token = strtok(NULL, SPACE))
-	{
-		tokens[position++] = token;	
-		if (position >= bufsize)
-		{
-			bufsize *= 2;
-			tokens = Realloc(tokens, bufsize * sizeof *tokens);
-		}
-	}
-	tokens[position] = NULL;
-	return (tokens);
-}
-
-
-/**
- * main - Entry point for the shell program
- * @argc: Argument count (unused)
- * @argv: Argument vector (unused)
- * Return: EXIT_SUCCESS on normal termination
- */
-int	main()
-{
-	// Load config files, if any, not in our Imperfect Cell
-	// 💥 stuff for cell perfect
-	
-	//printbanner();
-	
+int	main() {
 	char	*line;
 	char	**args;
 
-	// READ->EVAL->EXECUTE->LOOP
-	// 1) Get the line, loop until there is one 
-	// 		cell perfect use readline
-	while ((line = cell_read_line()))
-	{
-
-		// 2) Tokens
-		args = cell_split_line(line);	
-
-		// 2.1) check if cd command
-		if (args[0] && !strcmp(args[0], "cd"))
-			Chdir(args[1]);
-		
-		// 3) Exec
-		cell_execute(args);
-
-		// 4) Clean🧹
+	rl_attempted_completion_function = cell_completion;
+	while ((line = cell_read_line())) {
+		args = cell_split_line(line);
+		if (args[0] && !strcmp(args[0], "cd")) {
+			if (args[1]) Chdir(args[1]);
+			else fprintf(stderr, "cd: missing operand\n");
+		} else {
+			cell_execute(args);
+		}
 		free(line);
 		free(args);
-	
-
 	}
-
 	return (EXIT_SUCCESS);
 }

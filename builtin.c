@@ -1,5 +1,13 @@
 #include "cell.h"
-
+#include <time.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pwd.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <utime.h>
 /**
  * cell_echo - Echo command implementation with optional newline suppression
  * @args: Command arguments (args[0] is "echo")
@@ -88,3 +96,111 @@ int	cell_exit(char **args)
 	dbzSpinnerLoading();
 	exit(EX_OK);
 } 
+int cell_pwd(char **args) {
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("%s\n", cwd);
+        return 0;
+    } else {
+        perror("pwd");
+        return 1;
+    }
+}
+
+int cell_clear(char **args) {
+    // Gọi lệnh clear của hệ thống
+    int ret = system("clear");
+    return ret;
+}
+
+// Lưu lịch sử lệnh (đơn giản, tối đa 100 lệnh)
+#define HISTORY_SIZE 100
+char *history[HISTORY_SIZE];
+int history_count = 0;
+
+void add_history(const char *cmd) {
+    if (history_count < HISTORY_SIZE) {
+        history[history_count++] = strdup(cmd);
+    } else {
+        free(history[0]);
+        memmove(history, history + 1, sizeof(char*) * (HISTORY_SIZE - 1));
+        history[HISTORY_SIZE - 1] = strdup(cmd);
+    }
+}
+
+int cell_help(char **args) {
+    printf("Các lệnh built-in hỗ trợ:\n");
+    printf("help       : Hiển thị danh sách lệnh built-in\n");
+    printf("history    : Hiển thị lịch sử lệnh\n");
+    printf("date       : Hiển thị ngày giờ hệ thống\n");
+    printf("whoami     : Hiển thị tên người dùng hiện tại\n");
+    printf("echo, env, exit, cd, pwd, clear...\n");
+    return 0;
+}
+
+int cell_history(char **args) {
+    for (int i = 0; i < history_count; i++) {
+        printf("%2d  %s\n", i+1, history[i]);
+    }
+    return 0;
+}
+
+int cell_date(char **args) {
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char buf[64];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm_info);
+    printf("%s\n", buf);
+    return 0;
+}
+
+int cell_whoami(char **args) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw)
+        printf("%s\n", pw->pw_name);
+    else
+        perror("whoami");
+    return 0;
+}
+
+// Lệnh uptime: Đọc thông tin từ /proc/uptime (trên Linux)
+int cell_uptime(char **args) {
+    FILE *f = fopen("/proc/uptime", "r");
+    if (!f) {
+        perror("uptime");
+        return 1;
+    }
+    double uptime_seconds;
+    if (fscanf(f, "%lf", &uptime_seconds) != 1) {
+        fprintf(stderr, "uptime: lỗi đọc dữ liệu\n");
+        fclose(f);
+        return 1;
+    }
+    fclose(f);
+    int hours = (int)uptime_seconds / 3600;
+    int minutes = ((int)uptime_seconds % 3600) / 60;
+    int seconds = (int)uptime_seconds % 60;
+    printf("Uptime: %dh %dm %ds\n", hours, minutes, seconds);
+    return 0;
+}
+
+// Lệnh touch: Tạo file rỗng hoặc cập nhật thời gian sửa đổi
+int cell_touch(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "touch: thiếu tên file\n");
+        return 1;
+    }
+    int fd = open(args[1], O_CREAT | O_WRONLY, 0644);
+    if (fd < 0) {
+        perror("touch");
+        return 1;
+    }
+    close(fd);
+    // Cập nhật thời gian truy cập và sửa đổi
+    struct utimbuf new_times;
+    new_times.actime = time(NULL);
+    new_times.modtime = time(NULL);
+    utime(args[1], &new_times);
+    return 0;
+}
+
