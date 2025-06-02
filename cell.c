@@ -14,13 +14,14 @@ t_builtin	g_builtin[] =
 	{.builtin_name = "env", .foo=cell_env},
 	{.builtin_name = "exit", .foo=cell_exit},
 	{.builtin_name = "pwd", .foo=cell_pwd},
-    {.builtin_name = "clear", .foo=cell_clear},
-    {.builtin_name = "help", .foo=cell_help},
-    {.builtin_name = "history", .foo=cell_history},
-    {.builtin_name = "date", .foo=cell_date},
-    {.builtin_name = "whoami", .foo=cell_whoami},
-    {.builtin_name = "uptime", .foo=cell_uptime},
-    {.builtin_name = "touch", .foo=cell_touch},
+        {.builtin_name = "clear", .foo=cell_clear},
+        {.builtin_name = "help", .foo=cell_help},
+        {.builtin_name = "history", .foo=cell_history},
+        {.builtin_name = "date", .foo=cell_date},
+        {.builtin_name = "whoami", .foo=cell_whoami},
+        {.builtin_name = "uptime", .foo=cell_uptime},
+        {.builtin_name = "touch", .foo=cell_touch},
+        {.builtin_name = "alias", .foo=cell_alias},
 	{.builtin_name = NULL},
 };
 
@@ -76,23 +77,46 @@ void	cell_launch(char **args) {
 		Wait(&status);
 	}
 }
+#define ALIAS_RECUR_LIMIT 10
 
-void	cell_execute(char **args) {
-	int			i;
-	const char	*curr_builtin;
+void cell_execute(char **args) {
+    static int alias_depth = 0;
+    int i;
+    const char *curr_builtin;
 
-	if (!args || !args[0])
-		return ;
-	i = 0;
-	while ((curr_builtin = g_builtin[i].builtin_name)) {
-		if (!strcmp(args[0], curr_builtin)) {
-			if ((status = (g_builtin[i].foo)(args)))
-				p("%s failed\n", curr_builtin);
-			return ;
-		}
-		i++;
-	}
-	cell_launch(args);
+    if (!args || !args[0])
+        return;
+
+    const char* alias_value = get_alias(args[0]);
+    if (alias_value && alias_value[0]) {
+        if (alias_depth > ALIAS_RECUR_LIMIT) {
+            fprintf(stderr, "Alias recursion too deep!\n");
+            return;
+        }
+        alias_depth++;
+        char new_cmd[512] = {0};
+        snprintf(new_cmd, sizeof(new_cmd), "%s", alias_value);
+        for (int j = 1; args[j]; j++) {
+            strcat(new_cmd, " ");
+            strcat(new_cmd, args[j]);
+        }
+        char **new_args = cell_split_line(new_cmd);
+        cell_execute(new_args);
+        for (int i = 0; new_args[i]; i++) free(new_args[i]);
+        free(new_args);
+        alias_depth--;
+        return;
+    }
+    i = 0;
+    while ((curr_builtin = g_builtin[i].builtin_name)) {
+        if (!strcmp(args[0], curr_builtin)) {
+            if ((status = (g_builtin[i].foo)(args)))
+                p("%s failed\n", curr_builtin);
+            return ;
+        }
+        i++;
+    }
+    cell_launch(args);
 }
 
 char **cell_split_line(char *line) {
@@ -101,13 +125,15 @@ char **cell_split_line(char *line) {
     char **tokens = malloc(bufsize * sizeof *tokens);
     if (!tokens) { perror("malloc"); exit(EXIT_FAILURE); }
 
-    for (char *token = strtok(line, SPACE); token; token = strtok(NULL, SPACE)) {
-        tokens[position++] = token;	
+    char *token = strtok(line, SPACE);
+    while (token) {
+        tokens[position++] = strdup(token); // Sửa ở đây
         if (position >= bufsize) {
             bufsize *= 2;
             tokens = realloc(tokens, bufsize * sizeof *tokens);
             if (!tokens) { perror("realloc"); exit(EXIT_FAILURE); }
         }
+        token = strtok(NULL, SPACE);
     }
     tokens[position] = NULL;
     return tokens;
@@ -126,8 +152,9 @@ int	main() {
 		} else {
 			cell_execute(args);
 		}
-		free(line);
-		free(args);
+		for (int i = 0; args[i]; i++) free(args[i]);
+                free(args);
+                free(line);
 	}
 	return (EXIT_SUCCESS);
 }

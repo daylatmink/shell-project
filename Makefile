@@ -8,3 +8,4 @@ $(OUT): $(SRC)
 
 clean:
 	rm -f $(OUT)
+	

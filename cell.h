@@ -44,6 +44,7 @@
 #define ERROR(msg) fprintf(stderr, RED msg RST "\n")
 #define SPACE	"\t\n\v\f\r "
 #define CELL_JR	0
+#define MAX_ALIAS 100
 
 /*
 ** Status codes for shell operations
@@ -63,7 +64,13 @@ typedef struct s_builtin
     const char *builtin_name;
 	int (*foo)(char **av);
 } t_builtin;
+typedef struct {
+    char name[64];
+    char value[256];
+} Alias;
 
+extern Alias alias_table[MAX_ALIAS];
+extern int alias_count;
 /*
 ** Built-in command function prototypes
 ** Each returns 0 on success, non-zero on failure
@@ -79,7 +86,7 @@ int     cell_whoami(char **args); // lenh xem nguoi dung
 int     cell_uptime(char **args); //lenh xem tg may chay
 int     cell_touch(char **args); // tao file
 int	cell_exit(char **args);  /* Shell exit command */
-
+int     cell_alias(char **args);  // alias
 /*
 ** Dragon Ball Z themed utility functions
 */
@@ -99,5 +106,5 @@ void	*Malloc(size_t size);         /* Memory allocation */
 void	*Realloc(void *ptr, size_t size); /* Memory reallocation */
 char	*Getcwd(char *buf, size_t size); /* Get current directory */
 void	Getline(char **lineptr, size_t *n, FILE *stream); /* Read line */
-
+char **cell_split_line(char *line);
 #endif

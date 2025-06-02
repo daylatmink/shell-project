@@ -203,4 +203,70 @@ int cell_touch(char **args) {
     utime(args[1], &new_times);
     return 0;
 }
+Alias alias_table[MAX_ALIAS];
+int alias_count = 0;
+
+// Hàm thêm alias
+void add_alias(const char *name, const char *value) {
+    if (!name || !value || !*name || !*value) return; // Không thêm alias rỗng
+    for (int i = 0; i < alias_count; i++) {
+        if (strcmp(alias_table[i].name, name) == 0) {
+            strncpy(alias_table[i].value, value, sizeof(alias_table[i].value) - 1);
+            alias_table[i].value[sizeof(alias_table[i].value) - 1] = '\0';
+            return;
+        }
+    }
+    if (alias_count < MAX_ALIAS) {
+        strncpy(alias_table[alias_count].name, name, sizeof(alias_table[alias_count].name) - 1);
+        alias_table[alias_count].name[sizeof(alias_table[alias_count].name) - 1] = '\0';
+        strncpy(alias_table[alias_count].value, value, sizeof(alias_table[alias_count].value) - 1);
+        alias_table[alias_count].value[sizeof(alias_table[alias_count].value) - 1] = '\0';
+        alias_count++;
+    }
+}
+
+// Hàm lấy alias
+const char* get_alias(const char* name) {
+    for (int i = 0; i < alias_count; i++) {
+        if (strcmp(alias_table[i].name, name) == 0)
+            return alias_table[i].value;
+    }
+    return NULL;
+}
+
+// Hàm built-in xử lý lệnh alias
+int cell_alias(char **args) {
+    if (!args[1]) {
+        // Hiển thị toàn bộ alias
+        for (int i = 0; i < alias_count; i++)
+            printf("alias %s='%s'\n", alias_table[i].name, alias_table[i].value);
+        return 0;
+    }
+    // alias name='value'
+    char *eq = strchr(args[1], '=');
+    if (eq) {
+        *eq = '\0';
+        char *name = args[1];
+        char *value = eq + 1;
+        // Chỉ bỏ dấu nháy chuẩn
+        if ((value[0] == '\'' && value[strlen(value)-1] == '\'') ||
+            (value[0] == '"' && value[strlen(value)-1] == '"')) {
+            value++;
+            size_t len = strlen(value);
+            if (len > 0) value[len-1] = '\0';
+        }
+        add_alias(name, value);
+        return 0;
+    }
+    // alias name: hiển thị giá trị alias
+    const char* value = get_alias(args[1]);
+    if (value)
+        printf("alias %s='%s'\n", args[1], value);
+    else
+        printf("alias: %s: not found\n", args[1]);
+    return 0;
+}
+
+
+
 
