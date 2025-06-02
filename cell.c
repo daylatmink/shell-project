@@ -22,6 +22,7 @@ t_builtin	g_builtin[] =
         {.builtin_name = "uptime", .foo=cell_uptime},
         {.builtin_name = "touch", .foo=cell_touch},
         {.builtin_name = "alias", .foo=cell_alias},
+        {.builtin_name = "kill", .foo=cell_kill},
 	{.builtin_name = NULL},
 };
 

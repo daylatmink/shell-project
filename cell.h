@@ -87,6 +87,7 @@ int     cell_uptime(char **args); //lenh xem tg may chay
 int     cell_touch(char **args); // tao file
 int	cell_exit(char **args);  /* Shell exit command */
 int     cell_alias(char **args);  // alias
+int     cell_kill(char **args);//kill
 /*
 ** Dragon Ball Z themed utility functions
 */

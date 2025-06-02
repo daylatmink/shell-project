@@ -266,6 +266,20 @@ int cell_alias(char **args) {
         printf("alias: %s: not found\n", args[1]);
     return 0;
 }
+int cell_kill(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "kill: missing PID\n");
+        return 1;
+    }
+    pid_t pid = atoi(args[1]);
+    int sig = SIGTERM; // hoặc cho phép chọn signal
+    if (args[2]) sig = atoi(args[2]);
+    if (kill(pid, sig) == -1) {
+        perror("kill");
+        return 1;
+    }
+    return 0;
+}
 
 
 
