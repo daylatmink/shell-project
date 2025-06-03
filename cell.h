@@ -75,8 +75,8 @@ extern int alias_count;
 ** Built-in command function prototypes
 ** Each returns 0 on success, non-zero on failure
 */
-int	cell_echo(char **args);  /* Echo command implementation */
-int	cell_env(char **args);   /* Environment variables display*/
+int		cell_echo(char **args);  /* Echo command implementation */
+int		cell_env(char **args);   /* Environment variables display*/
 int     cell_pwd(char **args);     /* In thư mục hiện tại */
 int     cell_clear(char **args);   /* Xóa màn hình */
 int     cell_help(char **args);  //lenh help
@@ -85,9 +85,10 @@ int     cell_date(char **args); // lenh xem ngay
 int     cell_whoami(char **args); // lenh xem nguoi dung
 int     cell_uptime(char **args); //lenh xem tg may chay
 int     cell_touch(char **args); // tao file
-int	cell_exit(char **args);  /* Shell exit command */
+int		cell_exit(char **args);  /* Shell exit command */
 int     cell_alias(char **args);  // alias
 int     cell_kill(char **args);//kill
+int 	cell_jobs(char **args);
 /*
 ** Dragon Ball Z themed utility functions
 */
@@ -108,5 +109,5 @@ void	*Realloc(void *ptr, size_t size); /* Memory reallocation */
 char	*Getcwd(char *buf, size_t size); /* Get current directory */
 void	Getline(char **lineptr, size_t *n, FILE *stream); /* Read line */
 char  **cell_split_line(char *line);
-void  cell_pipe(char **args);
+void cell_pipe(char **args, int background);
 #endif

@@ -1,11 +1,10 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -g
-SRC=cell.c builtin.c utils.c -lreadline
+SRC_FILES=cell.c builtin.c utils.c processlist.c
 OUT=cell
 
-$(OUT): $(SRC)
-	$(CC) $(CFLAGS) -o $(OUT) $(SRC)
+$(OUT): $(SRC_FILES)
+	$(CC) $(CFLAGS) -o $(OUT) $(SRC_FILES) -lreadline
 
 clean:
 	rm -f $(OUT)
-	

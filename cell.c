@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
-
+#include "processlist.h"
 #define SPACE " \t\r\n"
 /* Global status variable for tracking command execution results */
 int	status = 0;
@@ -24,6 +24,8 @@ t_builtin	g_builtin[] =
         {.builtin_name = "touch", .foo=cell_touch},
         {.builtin_name = "alias", .foo=cell_alias},
         {.builtin_name = "kill", .foo=cell_kill},
+        { .builtin_name = "jobs", .foo = cell_jobs },
+        { .builtin_name = "list", .foo = cell_jobs },
 	{.builtin_name = NULL},
 };
 
@@ -60,11 +62,11 @@ char *cell_read_line(void) {
     char *line;
     if (status)
         snprintf(prompt, sizeof(prompt),
-            "🦠"C"[%s]"RED"[%d]"RST"🦠 > ",
+            ""Y"tinyShell"RST" > ",
             Getcwd(cwd, BUFSIZ), status);
     else
         snprintf(prompt, sizeof(prompt),
-            "🦠"C"[%s]"RST"🦠 > ",
+            ""Y"tinyShell"RST" > ",
             Getcwd(cwd, BUFSIZ));
     line = readline(prompt);
     if (line && *line)
@@ -72,7 +74,7 @@ char *cell_read_line(void) {
     return line;
 }
 
-void cell_launch(char **args) {
+void cell_launch(char **args, int background) {
     int in_redirect = -1, out_redirect = -1, append = 0;
     // Tìm redirect
     for (int i = 0; args[i]; i++) {
@@ -106,18 +108,29 @@ void cell_launch(char **args) {
         Execvp(args[0], args); // chỉ phần trước redirect
         perror("execvp"); exit(1);
     } else {
-        Wait(&status);
+        if (background) {
+            printf("[Background pid %d]\n", pid);
+            add_bg_proc(pid, args[0]); // hoặc truyền dòng lệnh gốc nếu có
+        } else {
+            Wait(&status);
+        }
     }
 }
 #define ALIAS_RECUR_LIMIT 10
 
-void cell_execute(char **args) {
+void cell_execute(char **args, int background) {
     static int alias_depth = 0;
     int i;
     const char *curr_builtin;
 
     if (!args || !args[0])
         return;
+
+
+    if (!strcmp(args[0], "jobs") || !strcmp(args[0], "list")) {
+        print_bg_list();
+        return;
+    }
 
     const char* alias_value = get_alias(args[0]);
     if (alias_value && alias_value[0]) {
@@ -133,7 +146,7 @@ void cell_execute(char **args) {
             strcat(new_cmd, args[j]);
         }
         char **new_args = cell_split_line(new_cmd);
-        cell_execute(new_args);
+        cell_execute(new_args, background); // Truyền background cho alias
         for (int i = 0; new_args[i]; i++) free(new_args[i]);
         free(new_args);
         alias_depth--;
@@ -148,7 +161,7 @@ void cell_execute(char **args) {
         }
         i++;
     }
-    cell_launch(args);
+    cell_launch(args, background); // Truyền background xuống launch
 }
 
 char **cell_split_line(char *line) {
@@ -185,10 +198,13 @@ char **cell_split_line(char *line) {
     tokens[position] = NULL;
     return tokens;
 }
-void cell_pipe(char **args) {
+void cell_pipe(char **args, int background) {
     int i = 0;
     while (args[i] && strcmp(args[i], "|") != 0) i++;
-    if (!args[i]) { cell_launch(args); return; }
+    if (!args[i]) { 
+        cell_launch(args, background); // truyền background!
+        return; 
+    }
 
     args[i] = NULL; // tách hai lệnh
     char **args1 = args;
@@ -196,22 +212,28 @@ void cell_pipe(char **args) {
 
     int fd[2];
     pipe(fd);
-    pid_t pid1 = Fork();
+    pid_t pid1 = fork();
     if (pid1 == 0) {
         dup2(fd[1], STDOUT_FILENO);
         close(fd[0]); close(fd[1]);
-        Execvp(args1[0], args1);
+        execvp(args1[0], args1);
         perror("execvp"); exit(1);
     }
-    pid_t pid2 = Fork();
+    pid_t pid2 = fork();
     if (pid2 == 0) {
         dup2(fd[0], STDIN_FILENO);
         close(fd[0]); close(fd[1]);
-        Execvp(args2[0], args2);
+        execvp(args2[0], args2);
         perror("execvp"); exit(1);
     }
     close(fd[0]); close(fd[1]);
-    Wait(&status); Wait(&status);
+    if (background) {
+        printf("[Background pipeline pid %d %d]\n", pid1, pid2);
+    } else {
+        int status;
+        waitpid(pid1, &status, 0);
+        waitpid(pid2, &status, 0);
+    }
 }
 static inline int has_pipe(char **args) {
     for (int i = 0; args[i]; i++) {
@@ -227,6 +249,17 @@ int main() {
     rl_attempted_completion_function = cell_completion;
     while ((line = cell_read_line())) {
         args = cell_split_line(line);
+
+        // Xử lý background (&)
+        int background = 0;
+        int argc = 0;
+        while (args[argc]) argc++;
+        if (argc > 0 && strcmp(args[argc-1], "&") == 0) {
+            background = 1;
+            free(args[argc-1]);
+            args[argc-1] = NULL;
+        }
+
         if (args[0] && !strcmp(args[0], "cd")) {
             if (args[1]) {
                 Chdir(args[1]);
@@ -234,10 +267,10 @@ int main() {
                 fprintf(stderr, "cd: missing operand\n");
             }
         } else if (args[0] && has_pipe(args)) {
-            // Nếu có pipe, gọi hàm xử lý pipe
-            cell_pipe(args);
+            cell_pipe(args, background);
         } else {
-            cell_execute(args);
+            // Truyền biến background cho hàm thực thi
+            cell_execute(args, background);
         }
         for (int i = 0; args[i]; i++) free(args[i]);
         free(args);

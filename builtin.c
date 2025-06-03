@@ -280,6 +280,10 @@ int cell_kill(char **args) {
     }
     return 0;
 }
+int cell_jobs(char **args) {
+    print_bg_list();
+    return 0;
+}
 
 
 
