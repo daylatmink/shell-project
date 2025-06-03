@@ -3,6 +3,7 @@
 #include <readline/history.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 #define SPACE " \t\r\n"
 /* Global status variable for tracking command execution results */
@@ -71,12 +72,42 @@ char *cell_read_line(void) {
     return line;
 }
 
-void	cell_launch(char **args) {
-	if (Fork() == CELL_JR) {
-		Execvp(args[0], args);
-	} else {
-		Wait(&status);
-	}
+void cell_launch(char **args) {
+    int in_redirect = -1, out_redirect = -1, append = 0;
+    // Tìm redirect
+    for (int i = 0; args[i]; i++) {
+        if (strcmp(args[i], "<") == 0 && args[i+1]) {
+            in_redirect = i;
+        } else if (strcmp(args[i], ">") == 0 && args[i+1]) {
+            out_redirect = i; append = 0;
+        } else if (strcmp(args[i], ">>") == 0 && args[i+1]) {
+            out_redirect = i; append = 1;
+        }
+    }
+
+    pid_t pid = Fork();
+    if (pid == 0) {
+        if (in_redirect != -1) {
+            int fd = open(args[in_redirect+1], O_RDONLY);
+            if (fd == -1) { perror("open"); exit(1);}
+            dup2(fd, STDIN_FILENO); close(fd);
+            args[in_redirect] = NULL;
+        }
+        if (out_redirect != -1) {
+            int fd;
+            if (append)
+                fd = open(args[out_redirect+1], O_WRONLY|O_CREAT|O_APPEND, 0644);
+            else
+                fd = open(args[out_redirect+1], O_WRONLY|O_CREAT|O_TRUNC, 0644);
+            if (fd == -1) { perror("open"); exit(1);}
+            dup2(fd, STDOUT_FILENO); close(fd);
+            args[out_redirect] = NULL;
+        }
+        Execvp(args[0], args); // chỉ phần trước redirect
+        perror("execvp"); exit(1);
+    } else {
+        Wait(&status);
+    }
 }
 #define ALIAS_RECUR_LIMIT 10
 
@@ -126,36 +157,91 @@ char **cell_split_line(char *line) {
     char **tokens = malloc(bufsize * sizeof *tokens);
     if (!tokens) { perror("malloc"); exit(EXIT_FAILURE); }
 
-    char *token = strtok(line, SPACE);
-    while (token) {
-        tokens[position++] = strdup(token); // Sửa ở đây
+    char *p = line, *start;
+    while (*p) {
+        while (*p && strchr(SPACE, *p)) p++;
+        if (!*p) break;
+        if (*p == '|' || *p == '<' || *p == '>') {
+            int len = 1;
+            if (*p == '>' && *(p+1) == '>') len = 2; // phát hiện >>
+            char op[3] = {0};
+            strncpy(op, p, len);
+            tokens[position++] = strdup(op);
+            p += len;
+        } else {
+            start = p;
+            while (*p && !strchr(SPACE, *p) && *p != '|' && *p != '<' && *p != '>') p++;
+            size_t len = p - start;
+            char *tok = malloc(len+1);
+            strncpy(tok, start, len); tok[len] = 0;
+            tokens[position++] = tok;
+        }
         if (position >= bufsize) {
             bufsize *= 2;
             tokens = realloc(tokens, bufsize * sizeof *tokens);
             if (!tokens) { perror("realloc"); exit(EXIT_FAILURE); }
         }
-        token = strtok(NULL, SPACE);
     }
     tokens[position] = NULL;
     return tokens;
 }
+void cell_pipe(char **args) {
+    int i = 0;
+    while (args[i] && strcmp(args[i], "|") != 0) i++;
+    if (!args[i]) { cell_launch(args); return; }
 
-int	main() {
-	char	*line;
-	char	**args;
+    args[i] = NULL; // tách hai lệnh
+    char **args1 = args;
+    char **args2 = &args[i+1];
 
-	rl_attempted_completion_function = cell_completion;
-	while ((line = cell_read_line())) {
-		args = cell_split_line(line);
-		if (args[0] && !strcmp(args[0], "cd")) {
-			if (args[1]) Chdir(args[1]);
-			else fprintf(stderr, "cd: missing operand\n");
-		} else {
-			cell_execute(args);
-		}
-		for (int i = 0; args[i]; i++) free(args[i]);
-                free(args);
-                free(line);
-	}
-	return (EXIT_SUCCESS);
+    int fd[2];
+    pipe(fd);
+    pid_t pid1 = Fork();
+    if (pid1 == 0) {
+        dup2(fd[1], STDOUT_FILENO);
+        close(fd[0]); close(fd[1]);
+        Execvp(args1[0], args1);
+        perror("execvp"); exit(1);
+    }
+    pid_t pid2 = Fork();
+    if (pid2 == 0) {
+        dup2(fd[0], STDIN_FILENO);
+        close(fd[0]); close(fd[1]);
+        Execvp(args2[0], args2);
+        perror("execvp"); exit(1);
+    }
+    close(fd[0]); close(fd[1]);
+    Wait(&status); Wait(&status);
+}
+static inline int has_pipe(char **args) {
+    for (int i = 0; args[i]; i++) {
+        if (strcmp(args[i], "|") == 0)
+            return 1;
+    }
+    return 0;
+}
+int main() {
+    char *line;
+    char **args;
+
+    rl_attempted_completion_function = cell_completion;
+    while ((line = cell_read_line())) {
+        args = cell_split_line(line);
+        if (args[0] && !strcmp(args[0], "cd")) {
+            if (args[1]) {
+                Chdir(args[1]);
+            } else {
+                fprintf(stderr, "cd: missing operand\n");
+            }
+        } else if (args[0] && has_pipe(args)) {
+            // Nếu có pipe, gọi hàm xử lý pipe
+            cell_pipe(args);
+        } else {
+            cell_execute(args);
+        }
+        for (int i = 0; args[i]; i++) free(args[i]);
+        free(args);
+        free(line);
+    }
+    return (EXIT_SUCCESS);
 }

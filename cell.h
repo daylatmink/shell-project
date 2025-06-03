@@ -107,5 +107,6 @@ void	*Malloc(size_t size);         /* Memory allocation */
 void	*Realloc(void *ptr, size_t size); /* Memory reallocation */
 char	*Getcwd(char *buf, size_t size); /* Get current directory */
 void	Getline(char **lineptr, size_t *n, FILE *stream); /* Read line */
-char **cell_split_line(char *line);
+char  **cell_split_line(char *line);
+void  cell_pipe(char **args);
 #endif
