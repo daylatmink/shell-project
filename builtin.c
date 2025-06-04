@@ -129,12 +129,22 @@ void add_history(const char *cmd) {
 }
 
 int cell_help(char **args) {
-    printf("Các lệnh built-in hỗ trợ:\n");
-    printf("help       : Hiển thị danh sách lệnh built-in\n");
-    printf("history    : Hiển thị lịch sử lệnh\n");
-    printf("date       : Hiển thị ngày giờ hệ thống\n");
-    printf("whoami     : Hiển thị tên người dùng hiện tại\n");
-    printf("echo, env, exit, cd, pwd, clear...\n");
+    printf(
+        "Các lệnh hỗ trợ trong tinyShell:\n\n"
+        "  help, cellhelp      Hiển thị thông tin trợ giúp này\n"
+        "  cd <dir>            Đổi thư mục làm việc hiện tại\n"
+        "  exit                Thoát shell\n"
+        "  jobs                Liệt kê các tiến trình nền\n"
+        "  fg <pid>            Đưa tiến trình nền về foreground\n"
+        "  kill <pid>          Kết thúc tiến trình theo pid\n"
+        "  history             Hiển thị lịch sử lệnh\n"
+        "  !<n>                Thực thi lại lệnh thứ n trong history\n"
+        "  <lệnh> &            Chạy lệnh ở chế độ nền (background)\n"
+        "  <lệnh1> | <lệnh2>   Kết hợp hai lệnh qua pipe\n"
+        "  <lệnh> > file       Ghi output vào file\n"
+        "  <lệnh> >> file      Ghi tiếp output vào file\n"
+        "  <lệnh> < file       Đọc input từ file\n"
+    );
     return 0;
 }
 
@@ -284,7 +294,6 @@ int cell_jobs(char **args) {
     print_bg_list();
     return 0;
 }
-
 
 
 

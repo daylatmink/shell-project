@@ -60,14 +60,16 @@ char *cell_read_line(void) {
     char cwd[BUFSIZ];
     char prompt[BUFSIZ + 64];
     char *line;
-    if (status)
+
+    getcwd(cwd, BUFSIZ); // Lấy thư mục hiện tại
+
+    if (status) 
         snprintf(prompt, sizeof(prompt),
-            ""Y"tinyShell"RST" > ",
-            Getcwd(cwd, BUFSIZ), status);
+            ""Y"tinyShell"RST" [%s] (exit=%d) > ", cwd, status);
     else
         snprintf(prompt, sizeof(prompt),
-            ""Y"tinyShell"RST" > ",
-            Getcwd(cwd, BUFSIZ));
+            ""Y"tinyShell"RST" [%s] > ", cwd);
+
     line = readline(prompt);
     if (line && *line)
         add_history(line);

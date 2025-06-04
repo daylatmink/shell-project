@@ -89,9 +89,7 @@ int		cell_exit(char **args);  /* Shell exit command */
 int     cell_alias(char **args);  // alias
 int     cell_kill(char **args);//kill
 int 	cell_jobs(char **args);
-/*
-** Dragon Ball Z themed utility functions
-*/
+
 void 	dbzSpinnerLoading();  /* Animated loading spinner */
 void	printbanner(void);    /* Shell banner display */
 
