@@ -295,5 +295,93 @@ int cell_jobs(char **args) {
     return 0;
 }
 
+int cell_time(char **args) {
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char buf[64];
+    strftime(buf, sizeof(buf), "%H:%M:%S", tm_info);
+    printf("Giờ hiện tại: %s\n", buf);
+    return 0;
+}
 
+int cell_dir(char **args) {
+    // Gọi trực tiếp lệnh ls -l
+    int ret = system("ls -l");
+    return ret;
+}
+
+int cell_stop(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "stop: thiếu PID\n");
+        return 1;
+    }
+    pid_t pid = atoi(args[1]);
+    if (kill(pid, SIGSTOP) == -1) {
+        perror("stop");
+        return 1;
+    }
+    set_bg_status(pid, STOPPED);  // Cập nhật trạng thái
+    return 0;
+}
+
+int cell_fg(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "fg: thiếu PID\n");
+        return 1;
+    }
+    pid_t pid = atoi(args[1]);
+    if (kill(pid, SIGCONT) == -1) {
+        perror("fg");
+        return 1;
+    }
+    set_bg_status(pid, RUNNING);
+    int status;
+    Waitpid(pid, &status, 0);  // Đợi foreground hoàn thành
+    return 0;
+}
+
+int cell_resume(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "resume: thiếu PID\n");
+        return 1;
+    }
+    pid_t pid = atoi(args[1]);
+    if (kill(pid, SIGCONT) == -1) {
+        perror("resume");
+        return 1;
+    }
+    set_bg_status(pid, RUNNING);
+    return 0;
+}
+
+int cell_path(char **args) {
+    (void)args;
+    const char *path = getenv("PATH");
+    if (path)
+        printf("PATH=%s\n", path);
+    else
+        fprintf(stderr, "PATH chưa được đặt\n");
+    return 0;
+}
+
+int cell_addpath(char **args) {
+    if (!args[1]) {
+        fprintf(stderr, "addpath: thiếu tham số thư mục\n");
+        return 1;
+    }
+    const char *old_path = getenv("PATH");
+    char new_path[1024];
+    if (old_path)
+        snprintf(new_path, sizeof(new_path), "%s:%s", old_path, args[1]);
+    else
+        snprintf(new_path, sizeof(new_path), "%s", args[1]);
+
+    if (setenv("PATH", new_path, 1) != 0) {
+        perror("addpath");
+        return 1;
+    }
+
+    printf("PATH đã cập nhật: %s\n", new_path);
+    return 0;
+}
 

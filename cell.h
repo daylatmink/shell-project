@@ -89,6 +89,13 @@ int		cell_exit(char **args);  /* Shell exit command */
 int     cell_alias(char **args);  // alias
 int     cell_kill(char **args);//kill
 int 	cell_jobs(char **args);
+int     cell_time(char **args);  // lệnh in thời gian hiện tại
+int     cell_dir(char **args); // lệnh liệt kê thư mục
+int     cell_stop(char **args);    // dừng tiến trình
+int     cell_fg(char **args);      // đưa tiến trình về foreground
+int     cell_resume(char **args);  // tiếp tục tiến trình nền
+int     cell_path(char **args);     // xem biến PATH
+int     cell_addpath(char **args);  // thêm thư mục vào PATH
 
 void 	dbzSpinnerLoading();  /* Animated loading spinner */
 void	printbanner(void);    /* Shell banner display */

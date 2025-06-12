@@ -4,10 +4,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
 #include "processlist.h"
 #define SPACE " \t\r\n"
 /* Global status variable for tracking command execution results */
 int	status = 0;
+static volatile sig_atomic_t child_running = 0; //...
+static pid_t child_pid = -1; //...
 
 t_builtin	g_builtin[] = 
 {
@@ -26,12 +30,27 @@ t_builtin	g_builtin[] =
         {.builtin_name = "kill", .foo=cell_kill},
         { .builtin_name = "jobs", .foo = cell_jobs },
         { .builtin_name = "list", .foo = cell_jobs },
+        {.builtin_name = "time", .foo = cell_time},
+        {.builtin_name = "dir", .foo = cell_dir},
+        {.builtin_name = "stop", .foo = cell_stop},
+        {.builtin_name = "fg", .foo = cell_fg},
+        {.builtin_name = "resume", .foo = cell_resume},
+        {.builtin_name = "path", .foo = cell_path},
+        {.builtin_name = "addpath", .foo = cell_addpath},
 	{.builtin_name = NULL},
 };
 
 const char *builtin_cmds[] = {
-	"echo", "env", "exit", "pwd", "clear", "help", "history", "date", "whoami", "uptime", "touch", NULL
+	"echo", "env", "exit", "pwd", "clear", "help", "history", "date", "whoami", "uptime", "touch", "time", "dir", "stop", "fg", "resume", "path", "addpath", NULL
 };
+
+void sigint_handler(int signo) { //...
+    if (child_running && child_pid > 0) {
+        kill(child_pid, SIGINT);  // Gửi SIGINT đến tiến trình con
+    } else {
+        write(STDOUT_FILENO, "\n", 1); // Xuống dòng nếu không có tiến trình con
+    }
+}
 
 char *command_generator(const char *text, int state) {
 	static int list_index, len;
@@ -91,6 +110,7 @@ void cell_launch(char **args, int background) {
 
     pid_t pid = Fork();
     if (pid == 0) {
+        signal(SIGINT, SIG_DFL); //...
         if (in_redirect != -1) {
             int fd = open(args[in_redirect+1], O_RDONLY);
             if (fd == -1) { perror("open"); exit(1);}
@@ -114,7 +134,11 @@ void cell_launch(char **args, int background) {
             printf("[Background pid %d]\n", pid);
             add_bg_proc(pid, args[0]); // hoặc truyền dòng lệnh gốc nếu có
         } else {
+            child_running = 1; //...
+            child_pid = pid; //...
             Wait(&status);
+            child_running = 0; //...
+            child_pid = -1; //...
         }
     }
 }
@@ -249,6 +273,7 @@ int main() {
     char **args;
 
     rl_attempted_completion_function = cell_completion;
+    signal(SIGINT, sigint_handler); //...
     while ((line = cell_read_line())) {
         args = cell_split_line(line);
 
