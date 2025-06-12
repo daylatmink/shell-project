@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <utime.h>
+#include "processlist.h"
 /**
  * cell_echo - Echo command implementation with optional newline suppression
  * @args: Command arguments (args[0] is "echo")
