@@ -297,6 +297,9 @@ int cell_jobs(char **args) {
 }
 
 int cell_time(char **args) {
+    setenv("TZ", "Asia/Ho_Chi_Minh", 1);
+    tzset();
+
     time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
     char buf[64];
