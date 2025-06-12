@@ -157,6 +157,9 @@ int cell_history(char **args) {
 }
 
 int cell_date(char **args) {
+    setenv("TZ", "Asia/Ho_Chi_Minh", 1);
+    tzset();
+
     time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
     char buf[64];
@@ -297,14 +300,34 @@ int cell_jobs(char **args) {
 }
 
 int cell_time(char **args) {
-    setenv("TZ", "Asia/Ho_Chi_Minh", 1);
-    tzset();
+    if (!args[1]) {
+        fprintf(stderr, "time: thieu lenh can do\n");
+        return 1;
+    }
 
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char buf[64];
-    strftime(buf, sizeof(buf), "%H:%M:%S", tm_info);
-    printf("Giờ hiện tại: %s\n", buf);
+    char cmd_line[512] = {0};
+    for (int i = 1; args[i]; i++) {
+        strcat(cmd_line, args[i]);
+        if (args[i + 1]) strcat(cmd_line, " ");
+    }
+
+    char **real_args = cell_split_line(cmd_line);
+
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
+    cell_execute(real_args, 0);  // foreground
+
+    gettimeofday(&end, NULL);
+
+    double elapsed = (end.tv_sec - start.tv_sec) + 
+                     (end.tv_usec - start.tv_usec) / 1000000.0;
+
+    printf("real\t%.3fs\n", elapsed);
+
+    for (int i = 0; real_args[i]; i++) free(real_args[i]);
+    free(real_args);
+
     return 0;
 }
 

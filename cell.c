@@ -152,6 +152,10 @@ void cell_execute(char **args, int background) {
     if (!args || !args[0])
         return;
 
+    if (args[0] && strcmp(args[0], "time") == 0) {
+        cell_time(args);
+        return;
+    }
 
     if (!strcmp(args[0], "jobs") || !strcmp(args[0], "list")) {
         print_bg_list();
